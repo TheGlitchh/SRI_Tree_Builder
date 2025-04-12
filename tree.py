@@ -1,6 +1,48 @@
 import tkinter as tk
 from tkinter import simpledialog
+class RenameDialog(tk.Toplevel):
+        def __init__(self, parent, node):
+            super().__init__(parent)
+            self.node = node
+            self.title("Rename and Change Color")
+            self.geometry("400x250")
 
+        # Node name input
+            self.name_label = tk.Label(self, text="Enter new name:")
+            self.name_label.pack(pady=5)
+            self.name_entry = tk.Entry(self)
+            self.name_entry.insert(0, self.node.text)  # Set initial value
+            self.name_entry.pack(pady=5)
+
+        # HEX color input
+            self.color_label = tk.Label(self, text="Enter new HEX color (e.g. #ed7d31):")
+            self.color_label.pack(pady=5)
+            self.color_entry = tk.Entry(self)
+            self.color_entry.insert(0, self.node.color)  # Set initial value
+            self.color_entry.pack(pady=5)
+
+        # Submit button to apply changes
+            self.submit_button = tk.Button(self, text="Apply", command=self.apply_changes)
+            self.submit_button.pack(pady=10)
+
+        def apply_changes(self):
+            new_text = self.name_entry.get()
+            new_color = self.color_entry.get()
+
+        # Apply name change
+            if new_text:
+                self.node.text = new_text
+                self.node.canvas.itemconfig(self.node.label, text=new_text)
+
+        # Apply color change if valid
+            if new_color:
+                if new_color.startswith("#") and len(new_color) in [4, 7]:
+                    self.node.color = new_color
+                    self.node.canvas.itemconfig(self.node.oval, fill=self.node.color)
+                else:
+                    self.node.canvas.master.status_label.config(text="Invalid HEX color. Color not changed.")
+
+            self.destroy()  # Close the dialog
 class TreeNode:
     def __init__(self, canvas, x, y, text, parent=None, side=None, color="#ed7d31"):
         self.canvas = canvas
@@ -108,13 +150,9 @@ class TreeNode:
                 self.parent.x, self.parent.y + self.parent.height // 2,
                 self.x, self.y - self.height // 2
             )
-
+    
     def rename_node(self, event):
-        new_text = simpledialog.askstring("Rename Node", "Enter new name:", initialvalue=self.text)
-        if new_text:
-            self.text = new_text
-            self.canvas.itemconfig(self.label, text=new_text)
-            self.canvas.master.status_label.config(text=f"Renamed to: {self.text}")
+        dialog = RenameDialog(self.canvas.master, self)
 
     def delete(self):
         if self.left:
@@ -145,6 +183,7 @@ class TreeApp(tk.Tk):
         control_frame = tk.Frame(self)
         control_frame.pack()
 
+        tk.Button(control_frame, text="Add Root", command=self.add_root_node).pack(side=tk.LEFT, padx=5)
         tk.Button(control_frame, text="Add Left", command=lambda: self.add_node("left")).pack(side=tk.LEFT, padx=5)
         tk.Button(control_frame, text="Add Right", command=lambda: self.add_node("right")).pack(side=tk.LEFT, padx=5)
         tk.Button(control_frame, text="Delete Node", command=self.delete_node).pack(side=tk.LEFT, padx=5)
@@ -156,11 +195,26 @@ class TreeApp(tk.Tk):
         self.selected_node = None
         self.drag_start = (0, 0)
 
-        self.root_node = TreeNode(self.canvas, 500, 50, "root")
-        self.selected_node = self.root_node
+        self.root_nodes = []
+        self.add_root_node()
 
     def update_buttons(self):
         pass
+
+    def add_root_node(self):
+        name = simpledialog.askstring("New Root", "Enter root node name:", parent=self)
+        if not name:
+            name = f"Root {len(self.root_nodes) + 1}"
+        color_code = simpledialog.askstring("Node Color", "Enter HEX color (e.g. #ed7d31):", initialvalue="#ed7d31", parent=self)
+        if not color_code or not color_code.startswith("#") or len(color_code) not in [4, 7]:
+            self.status_label.config(text="Invalid HEX color. Using default.")
+            color_code = "#ed7d31"
+
+        x = 100 + len(self.root_nodes) * 250
+        y = 50
+        root_node = TreeNode(self.canvas, x, y, name, color=color_code)
+        self.root_nodes.append(root_node)
+        self.selected_node = root_node
 
     def add_node(self, direction):
         if not self.selected_node:
@@ -202,8 +256,10 @@ class TreeApp(tk.Tk):
         node.on_click(None)
 
     def delete_node(self):
-        if not self.selected_node or self.selected_node == self.root_node:
+        if not self.selected_node:
             return
+        if self.selected_node in self.root_nodes:
+            self.root_nodes.remove(self.selected_node)
         self.status_label.config(text=f"Deleted: {self.selected_node.text}")
         self.selected_node.delete()
         self.selected_node = None
@@ -245,13 +301,13 @@ class TreeApp(tk.Tk):
                 lines.append(self._arrow_svg(node, node.right))
                 add_arrow_lines(node.right)
 
-        add_node_div(self.root_node)
-        add_arrow_lines(self.root_node)
+        for root in self.root_nodes:
+            add_node_div(root)
+            add_arrow_lines(root)
 
         html += "".join(lines)
         html += "</div></body></html>"
 
-        # Show in a popup instead of saving to file
         popup = tk.Toplevel(self)
         popup.title("Generated HTML")
         popup.geometry("800x600")
