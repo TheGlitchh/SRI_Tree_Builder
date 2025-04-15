@@ -1,50 +1,47 @@
 import tkinter as tk
 from tkinter import simpledialog
+
 class RenameDialog(tk.Toplevel):
-        def __init__(self, parent, node):
-            super().__init__(parent)
-            self.node = node
-            self.title("Rename and Change Color")
-            self.geometry("400x250")
+    def __init__(self, parent, node):
+        super().__init__(parent)
+        self.node = node
+        self.title("Rename and Change Color")
+        self.geometry("400x250")
 
-        # Node name input
-            self.name_label = tk.Label(self, text="Enter new name:")
-            self.name_label.pack(pady=5)
-            self.name_entry = tk.Entry(self)
-            self.name_entry.insert(0, self.node.text)  # Set initial value
-            self.name_entry.pack(pady=5)
+        self.name_label = tk.Label(self, text="Enter new name:")
+        self.name_label.pack(pady=5)
+        self.name_entry = tk.Entry(self)
+        self.name_entry.insert(0, self.node.text)
+        self.name_entry.pack(pady=5)
 
-        # HEX color input
-            self.color_label = tk.Label(self, text="Enter new HEX color (e.g. #ed7d31):")
-            self.color_label.pack(pady=5)
-            self.color_entry = tk.Entry(self)
-            self.color_entry.insert(0, self.node.color)  # Set initial value
-            self.color_entry.pack(pady=5)
+        self.color_label = tk.Label(self, text="Enter new HEX color (e.g. #ed7d31):")
+        self.color_label.pack(pady=5)
+        self.color_entry = tk.Entry(self)
+        self.color_entry.insert(0, self.node.color)
+        self.color_entry.pack(pady=5)
 
-        # Submit button to apply changes
-            self.submit_button = tk.Button(self, text="Apply", command=self.apply_changes)
-            self.submit_button.pack(pady=10)
+        self.submit_button = tk.Button(self, text="Apply", command=self.apply_changes)
+        self.submit_button.pack(pady=10)
 
-        def apply_changes(self):
-            new_text = self.name_entry.get()
-            new_color = self.color_entry.get()
+    def apply_changes(self):
+        new_text = self.name_entry.get()
+        new_color = self.color_entry.get()
 
-        # Apply name change
-            if new_text:
-                self.node.text = new_text
-                self.node.canvas.itemconfig(self.node.label, text=new_text)
+        if new_text:
+            self.node.text = new_text
+            self.node.canvas.itemconfig(self.node.label, text=new_text)
 
-        # Apply color change if valid
-            if new_color:
-                if new_color.startswith("#") and len(new_color) in [4, 7]:
-                    self.node.color = new_color
-                    self.node.canvas.itemconfig(self.node.oval, fill=self.node.color)
-                else:
-                    self.node.canvas.master.status_label.config(text="Invalid HEX color. Color not changed.")
+        if new_color:
+            if new_color.startswith("#") and len(new_color) in [4, 7]:
+                self.node.color = new_color
+                self.node.canvas.itemconfig(self.node.oval, fill=self.node.color)
+            else:
+                self.node.canvas.master.status_label.config(text="Invalid HEX color. Color not changed.")
 
-            self.destroy()  # Close the dialog
+        self.destroy()
+
 class TreeNode:
-    def __init__(self, canvas, x, y, text, parent=None, side=None, color="#ed7d31"):
+    def __init__(self, canvas, x, y, text, parent=None, color="#ed7d31"):
         self.canvas = canvas
         self.text = text
         self.color = color
@@ -53,10 +50,8 @@ class TreeNode:
         self.width = 80
         self.height = 40
         self.parent = parent
-        self.side = side
-        self.left = None
-        self.right = None
-        self.arrow_to_parent = None
+        self.children = []
+        self.arrows = []
         self.oval = None
         self.label = None
         self.resize_handle = None
@@ -104,22 +99,29 @@ class TreeNode:
         pass
 
     def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
-        for item in (self.oval, self.label, self.resize_handle):
-            self.canvas.move(item, dx, dy)
+     self.x += dx
+     self.y += dy
+     for item in (self.oval, self.label, self.resize_handle):
+        self.canvas.move(item, dx, dy)
 
-        if self.arrow_to_parent and self.parent:
-            self.canvas.coords(
-                self.arrow_to_parent,
-                self.parent.x, self.parent.y + self.parent.height // 2,
-                self.x, self.y - self.height // 2
-            )
+    # Update arrow from parent to this node
+     if self.parent:
+        index = self.parent.children.index(self)
+        arrow = self.parent.arrows[index]
+        self.canvas.coords(
+            arrow,
+            self.parent.x, self.parent.y + self.parent.height // 2,
+            self.x, self.y - self.height // 2
+        )
 
-        if self.left:
-            self.left.move(dx, dy)
-        if self.right:
-            self.right.move(dx, dy)
+    # Update arrows to children
+     for child, arrow in zip(self.children, self.arrows):
+        self.canvas.coords(
+            arrow,
+            self.x, self.y + self.height // 2,
+            child.x, child.y - child.height // 2
+        )
+
 
     def on_resize_click(self, event):
         self.canvas.master.drag_start = (event.x, event.y)
@@ -144,32 +146,20 @@ class TreeNode:
             self.x + self.width // 2 - 5, self.y + self.height // 2 - 5,
             self.x + self.width // 2 + 5, self.y + self.height // 2 + 5
         )
-        if self.arrow_to_parent and self.parent:
-            self.canvas.coords(
-                self.arrow_to_parent,
-                self.parent.x, self.parent.y + self.parent.height // 2,
-                self.x, self.y - self.height // 2
-            )
-    
+
     def rename_node(self, event):
         dialog = RenameDialog(self.canvas.master, self)
 
     def delete(self):
-        if self.left:
-            self.left.delete()
-        if self.right:
-            self.right.delete()
+        for child in self.children:
+            child.delete()
 
-        if self.parent:
-            if self.side == "left":
-                self.parent.left = None
-            elif self.side == "right":
-                self.parent.right = None
+        for arrow in self.arrows:
+            self.canvas.delete(arrow)
 
-        for item in (self.oval, self.label, self.arrow_to_parent, self.resize_handle):
+        for item in (self.oval, self.label, self.resize_handle):
             if item:
                 self.canvas.delete(item)
-
 
 class TreeApp(tk.Tk):
     def __init__(self):
@@ -184,8 +174,7 @@ class TreeApp(tk.Tk):
         control_frame.pack()
 
         tk.Button(control_frame, text="Add Root", command=self.add_root_node).pack(side=tk.LEFT, padx=5)
-        tk.Button(control_frame, text="Add Left", command=lambda: self.add_node("left")).pack(side=tk.LEFT, padx=5)
-        tk.Button(control_frame, text="Add Right", command=lambda: self.add_node("right")).pack(side=tk.LEFT, padx=5)
+        tk.Button(control_frame, text="Add Child", command=self.add_child_node).pack(side=tk.LEFT, padx=5)
         tk.Button(control_frame, text="Delete Node", command=self.delete_node).pack(side=tk.LEFT, padx=5)
         tk.Button(control_frame, text="Export HTML", command=self.generate_html).pack(side=tk.LEFT, padx=5)
 
@@ -194,7 +183,6 @@ class TreeApp(tk.Tk):
 
         self.selected_node = None
         self.drag_start = (0, 0)
-
         self.root_nodes = []
         self.add_root_node()
 
@@ -216,18 +204,11 @@ class TreeApp(tk.Tk):
         self.root_nodes.append(root_node)
         self.selected_node = root_node
 
-    def add_node(self, direction):
+    def add_child_node(self):
         if not self.selected_node:
             return
 
-        if direction == "left" and self.selected_node.left:
-            self.status_label.config(text="Left child already exists.")
-            return
-        if direction == "right" and self.selected_node.right:
-            self.status_label.config(text="Right child already exists.")
-            return
-
-        name = simpledialog.askstring("New Node", f"Enter name for {direction} child:", parent=self)
+        name = simpledialog.askstring("New Node", f"Enter name for child node:", parent=self)
         if not name:
             return
 
@@ -236,30 +217,31 @@ class TreeApp(tk.Tk):
             self.status_label.config(text="Invalid HEX color. Using default.")
             color_code = "#ed7d31"
 
-        x_offset = -150 if direction == "left" else 150
-        x = self.selected_node.x + x_offset
+        x = self.selected_node.x + len(self.selected_node.children) * 150 - 75
         y = self.selected_node.y + 100
 
-        node = TreeNode(self.canvas, x, y, name, parent=self.selected_node, side=direction, color=color_code)
-
-        if direction == "left":
-            self.selected_node.left = node
-        else:
-            self.selected_node.right = node
-
+        child_node = TreeNode(self.canvas, x, y, name, parent=self.selected_node, color=color_code)
         arrow = self.canvas.create_line(
             self.selected_node.x, self.selected_node.y + self.selected_node.height // 2,
-            x, y - node.height // 2,
+            x, y - child_node.height // 2,
             arrow=tk.LAST, fill="gray", width=2
         )
-        node.arrow_to_parent = arrow
-        node.on_click(None)
+        self.selected_node.children.append(child_node)
+        self.selected_node.arrows.append(arrow)
+        child_node.on_click(None)
 
     def delete_node(self):
         if not self.selected_node:
             return
         if self.selected_node in self.root_nodes:
             self.root_nodes.remove(self.selected_node)
+        if self.selected_node.parent:
+            parent = self.selected_node.parent
+            if self.selected_node in parent.children:
+                index = parent.children.index(self.selected_node)
+                del parent.children[index]
+                self.canvas.delete(parent.arrows[index])
+                del parent.arrows[index]
         self.status_label.config(text=f"Deleted: {self.selected_node.text}")
         self.selected_node.delete()
         self.selected_node = None
@@ -288,18 +270,13 @@ class TreeApp(tk.Tk):
             nonlocal html
             node_div = f"<div class='node' style='left: {node.x - node.width//2}px; top: {node.y - node.height//2}px; width: {node.width}px; height: {node.height}px; background-color: {node.color};'>{node.text}</div>\n"
             html += node_div
-            if node.left:
-                add_node_div(node.left)
-            if node.right:
-                add_node_div(node.right)
+            for child in node.children:
+                add_node_div(child)
 
         def add_arrow_lines(node):
-            if node.left:
-                lines.append(self._arrow_svg(node, node.left))
-                add_arrow_lines(node.left)
-            if node.right:
-                lines.append(self._arrow_svg(node, node.right))
-                add_arrow_lines(node.right)
+            for child in node.children:
+                lines.append(self._arrow_svg(node, child))
+                add_arrow_lines(child)
 
         for root in self.root_nodes:
             add_node_div(root)
