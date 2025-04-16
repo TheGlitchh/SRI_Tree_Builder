@@ -10,12 +10,21 @@ PYTHON_EXE = os.path.join(PYTHON_DIR, "python.exe")
 PYTHON_ZIP = os.path.join(os.path.dirname(__file__), "python.zip")  # Your WinPython zip
 SCRIPT = os.path.join(os.path.dirname(__file__), "tree.py")
 
+REQUIRED_LIBRARIES = ["customtkinter", "pyautogui", "pillow", "pywebview"]
+
 def extract_winpython():
     print(f"Extracting WinPython to: {PYTHON_DIR}")
     os.makedirs(PYTHON_DIR, exist_ok=True)
     with zipfile.ZipFile(PYTHON_ZIP, "r") as zip_ref:
         zip_ref.extractall(PYTHON_DIR)
     print("Done extracting WinPython.")
+
+def install_libraries():
+    print("Installing required libraries...")
+    subprocess.run([PYTHON_EXE, "-m", "ensurepip"])
+    subprocess.run([PYTHON_EXE, "-m", "pip", "install", "--upgrade", "pip"])
+    subprocess.run([PYTHON_EXE, "-m", "pip", "install"] + REQUIRED_LIBRARIES)
+    print("Libraries installed successfully.")
 
 def run_script():
     print(f"Running {SCRIPT} with {PYTHON_EXE}")
@@ -27,6 +36,7 @@ def main():
             print(f"ERROR: {PYTHON_ZIP} not found.")
             sys.exit(1)
         extract_winpython()
+        install_libraries()
     
     run_script()
 
