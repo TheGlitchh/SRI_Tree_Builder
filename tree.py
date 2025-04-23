@@ -1,12 +1,12 @@
 import tkinter as tk
 import customtkinter as ctk
-from tkinter import simpledialog
+from tkinter import simpledialog, filedialog
 import pyperclip
 import webview
 from PIL import ImageGrab, ImageTk
 import pyautogui
 import os
-
+import json
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -26,6 +26,7 @@ def center_window(window, parent=None):
         y = (screen_height // 2) - (height // 2)
 
     window.geometry(f"+{x}+{y}")
+    
 class RenameDialog(ctk.CTkToplevel):
     def __init__(self, parent, node):
         super().__init__(parent)
@@ -106,14 +107,14 @@ class RenameDialog(ctk.CTkToplevel):
         self.destroy()
 
 class TreeNode:
-    def __init__(self, canvas, x, y, text, parent=None, color="#ed7d31"):
+    def __init__(self, canvas, x, y, text, parent=None, color="#ed7d31", width=80, height=40):
         self.canvas = canvas
         self.text = text
         self.color = color
         self.x = x
         self.y = y
-        self.width = 80
-        self.height = 40
+        self.width = width
+        self.height = height
         self.parent = parent
         self.children = []
         self.arrows = []
@@ -151,7 +152,14 @@ class TreeNode:
     def on_click(self, event):
         self.canvas.master.selected_node = self
         self.canvas.master.drag_start = (event.x, event.y)
-        self.canvas.master.status_label.configure(text=f"Selected: {self.text}")
+        self.canvas.master.status_label.configure(text=f"✔ Selected: {self.text}", text_color="#3b8ed0")
+        self.canvas.master.status_label.after(150, lambda: self.canvas.master.status_label.configure(text_color="#282828"))
+        self.canvas.master.status_label.after(300, lambda: self.canvas.master.status_label.configure(text_color="#3b8ed0"))
+        self.canvas.master.status_label.after(450, lambda: self.canvas.master.status_label.configure(text_color="#282828"))
+        self.canvas.master.status_label.after(600, lambda: self.canvas.master.status_label.configure(text_color="#3b8ed0"))
+        self.canvas.master.status_label.after(750, lambda: self.canvas.master.status_label.configure(text_color="#282828"))
+
+
         self.canvas.master.update_buttons()
 
     def on_drag(self, event):
@@ -216,6 +224,19 @@ class TreeNode:
         for item in (self.oval, self.label, self.resize_handle):
             if item:
                 self.canvas.delete(item)
+                
+    # Method to serialize node data for saving
+    def to_dict(self):
+        node_data = {
+            'text': self.text,
+            'color': self.color,
+            'x': self.x,
+            'y': self.y,
+            'width': self.width,
+            'height': self.height,
+            'children': [child.to_dict() for child in self.children]
+        }
+        return node_data
 
 class TreeApp(ctk.CTk):
     def __init__(self):
@@ -253,17 +274,145 @@ class TreeApp(ctk.CTk):
         )
         self.arrow_toggle.pack(side=tk.LEFT, padx=5)
 
-        self.status_label = ctk.CTkLabel(control_frame, text="Select a node to add/delete/rename", text_color="blue")
+        # Add Save/Load buttons to control frame
+        file_frame = ctk.CTkFrame(control_frame)
+        file_frame.pack(side=tk.LEFT, padx=20)
+        
+        # Save button - saves current tree layout to a file
+        ctk.CTkButton(
+            file_frame, 
+            text="Save Layout", 
+            command=self.save_layout
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Load button - loads tree layout from a file
+        ctk.CTkButton(
+            file_frame, 
+            text="Import Layout", 
+            command=self.import_layout
+        ).pack(side=tk.LEFT, padx=5)
+        
+        
+        self.status_label = ctk.CTkLabel(
+            control_frame, 
+            text="🟢 Ready: Select a node to add/delete/rename",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#282828",  # Tailwind green-400
+            anchor="w",
+            corner_radius=8,
+            fg_color="#c4ddf0",  # slate-800
+            padx=10,
+            pady=6
+        )
         self.status_label.pack(pady=5)
+        self.status_label.after(1500, lambda: self.status_label.configure(text_color="#282828"))
+    
+        
 
         self.selected_node = None
         self.drag_start = (0, 0)
         self.root_nodes = []
+        
+        # Start with a root node for convenience
         self.add_root_node()
 
     def update_buttons(self):
         pass
         
+    # Added save layout method
+    def save_layout(self):
+        # No trees to save
+        if not self.root_nodes:
+            self.status_label.configure(text="No tree to save!")
+            return
+            
+        # Get file path from user
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".tree",
+            filetypes=[("Tree Layout Files", "*.tree"), ("All Files", "*.*")],
+            title="Save Tree Layout"
+        )
+        
+        if not file_path:
+            return  # User cancelled
+            
+        # Create layout data dictionary
+        layout_data = {
+            'use_right_angle_arrows': self.use_right_angle_arrows.get(),
+            'root_nodes': [node.to_dict() for node in self.root_nodes]
+        }
+        
+        # Save to file as JSON
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(layout_data, f, indent=4)
+            self.status_label.configure(text=f"Layout saved to {os.path.basename(file_path)}")
+        except Exception as e:
+            self.status_label.configure(text=f"Error saving layout: {str(e)}")
+            
+    # Added import layout method
+    def import_layout(self):
+        # Get file path from user
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Tree Layout Files", "*.tree"), ("All Files", "*.*")],
+            title="Import Tree Layout"
+        )
+        
+        if not file_path:
+            return  # User cancelled
+            
+        try:
+            # Load layout data from file
+            with open(file_path, 'r') as f:
+                layout_data = json.load(f)
+                
+            # Clear current layout
+            for node in self.root_nodes:
+                node.delete()
+            self.root_nodes = []
+            self.selected_node = None
+            
+            # Set arrow type
+            self.use_right_angle_arrows.set(layout_data.get('use_right_angle_arrows', False))
+            
+            # Create nodes from loaded data
+            for root_data in layout_data['root_nodes']:
+                self._create_node_from_data(root_data)
+                
+            self.status_label.configure(text=f"Layout imported from {os.path.basename(file_path)}")
+        except Exception as e:
+            self.status_label.configure(text=f"Error importing layout: {str(e)}")
+            
+    # Helper method to recursively create nodes from saved data
+    def _create_node_from_data(self, node_data, parent=None):
+        # Create the node
+        node = TreeNode(
+            self.canvas,
+            node_data['x'],
+            node_data['y'],
+            node_data['text'],
+            parent=parent,
+            color=node_data['color'],
+            width=node_data['width'],
+            height=node_data['height']
+        )
+        
+        # Add to root nodes if it's a root
+        if parent is None:
+            self.root_nodes.append(node)
+        else:
+            # Create arrow to parent
+            arrow = self.canvas.create_line(0, 0, 0, 0, arrow=tk.LAST, fill="gray", width=2)
+            self.update_arrow(parent, node, arrow)
+            parent.children.append(node)
+            parent.arrows.append(arrow)
+            
+        # Create children recursively
+        for child_data in node_data['children']:
+            self._create_node_from_data(child_data, parent=node)
+            
+        return node
+            
     # Added method to update all existing arrows when toggle is switched
     def update_all_arrows(self):
         for root_node in self.root_nodes:
