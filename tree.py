@@ -172,18 +172,12 @@ class TreeNode:
         if self.parent:
             index = self.parent.children.index(self)
             arrow = self.parent.arrows[index]
-            self.canvas.coords(
-                arrow,
-                self.parent.x, self.parent.y + self.parent.height // 2,
-                self.x, self.y - self.height // 2
-            )
+            # Update arrow coordinates based on current arrow type
+            self.canvas.master.update_arrow(self.parent, self, arrow)
 
         for child, arrow in zip(self.children, self.arrows):
-            self.canvas.coords(
-                arrow,
-                self.x, self.y + self.height // 2,
-                child.x, child.y - child.height // 2
-            )
+            # Update arrow coordinates based on current arrow type
+            self.canvas.master.update_arrow(self, child, arrow)
 
     def on_resize_click(self, event):
         self.canvas.master.drag_start = (event.x, event.y)
@@ -234,10 +228,30 @@ class TreeApp(ctk.CTk):
         control_frame = ctk.CTkFrame(self)
         control_frame.pack()
 
+        # Control buttons
         ctk.CTkButton(control_frame, text="Add Root", command=self.add_root_node).pack(side=tk.LEFT, padx=5)
         ctk.CTkButton(control_frame, text="Add Child", command=self.add_child_node).pack(side=tk.LEFT, padx=5)
         ctk.CTkButton(control_frame, text="Delete Node", command=self.delete_node).pack(side=tk.LEFT, padx=5)
         ctk.CTkButton(control_frame, text="Export HTML", command=self.generate_html).pack(side=tk.LEFT, padx=5)
+        
+        # Added arrow toggle switch
+        arrow_frame = ctk.CTkFrame(control_frame)
+        arrow_frame.pack(side=tk.LEFT, padx=20)
+        
+        arrow_label = ctk.CTkLabel(arrow_frame, text="Arrow Type:")
+        arrow_label.pack(side=tk.LEFT, padx=5)
+        
+        # Variable to track arrow type: True = right angle, False = straight
+        self.use_right_angle_arrows = tk.BooleanVar(value=False)
+        
+        # Create the toggle switch for arrow type
+        self.arrow_toggle = ctk.CTkSwitch(
+            arrow_frame, 
+            text="Right Angle", 
+            variable=self.use_right_angle_arrows,
+            command=self.update_all_arrows
+        )
+        self.arrow_toggle.pack(side=tk.LEFT, padx=5)
 
         self.status_label = ctk.CTkLabel(control_frame, text="Select a node to add/delete/rename", text_color="blue")
         self.status_label.pack(pady=5)
@@ -249,6 +263,38 @@ class TreeApp(ctk.CTk):
 
     def update_buttons(self):
         pass
+        
+    # Added method to update all existing arrows when toggle is switched
+    def update_all_arrows(self):
+        for root_node in self.root_nodes:
+            self.update_node_arrows(root_node)
+            
+    # Added recursive method to update arrows for a node and its children
+    def update_node_arrows(self, node):
+        for i, child in enumerate(node.children):
+            arrow = node.arrows[i]
+            self.update_arrow(node, child, arrow)
+            self.update_node_arrows(child)
+            
+    # Added method to update arrow coordinates based on current arrow type
+    def update_arrow(self, parent, child, arrow):
+        if self.use_right_angle_arrows.get():
+            # Right angle arrow
+            mid_y = parent.y + (child.y - parent.y) // 2
+            self.canvas.coords(
+                arrow,
+                parent.x, parent.y + parent.height // 2,  # Start point
+                parent.x, mid_y,                          # First corner
+                child.x, mid_y,                           # Second corner
+                child.x, child.y - child.height // 2      # End point
+            )
+        else:
+            # Straight arrow
+            self.canvas.coords(
+                arrow,
+                parent.x, parent.y + parent.height // 2,  # Start point
+                child.x, child.y - child.height // 2      # End point
+            )
 
     def add_root_node(self):
         popup = ctk.CTkToplevel(self)
@@ -324,11 +370,13 @@ class TreeApp(ctk.CTk):
             y = parent.y + 100
 
             child_node = TreeNode(self.canvas, x, y, name, parent=parent, color=color)
-            arrow = self.canvas.create_line(
-                parent.x, parent.y + parent.height // 2,
-                x, y - child_node.height // 2,
-                arrow=tk.LAST, fill="gray", width=2
-            )
+            
+            # Create line object with empty coords first
+            arrow = self.canvas.create_line(0, 0, 0, 0, arrow=tk.LAST, fill="gray", width=2)
+            
+            # Set the correct coords based on current arrow type
+            self.update_arrow(parent, child_node, arrow)
+            
             parent.children.append(child_node)
             parent.arrows.append(arrow)
             popup.destroy()
@@ -383,7 +431,11 @@ class TreeApp(ctk.CTk):
 
         def add_arrow_lines(node):
             for child in node.children:
-                lines.append(self._arrow_svg(node, child))
+                # Use appropriate arrow SVG based on current setting
+                if self.use_right_angle_arrows.get():
+                    lines.append(self._right_angle_arrow_svg(node, child))
+                else:
+                    lines.append(self._straight_arrow_svg(node, child))
                 add_arrow_lines(child)
 
         for root in self.root_nodes:
@@ -417,7 +469,9 @@ class TreeApp(ctk.CTk):
 
         # Optional: Show a confirmation message (e.g., in status bar or popup)
         self.status_label.config(text="HTML code copied to clipboard!", fg="green")
-    def _arrow_svg(self, parent, child):
+        
+    # Renamed original arrow method to be more specific
+    def _straight_arrow_svg(self, parent, child):
         start_y = parent.y + parent.height // 2 + 10
         end_y = child.y - child.height // 2 - 5
         return f"""
@@ -426,6 +480,22 @@ class TreeApp(ctk.CTk):
 <path d="M0,0 L0,6 L9,3 z" fill="gray" />
 </marker></defs>
 <line x1="{parent.x}" y1="{start_y}" x2="{child.x}" y2="{end_y}" stroke="gray" stroke-width="2" marker-end="url(#arrow)" />
+</svg>
+"""
+
+    # Added new method for right angle arrow SVG
+    def _right_angle_arrow_svg(self, parent, child):
+        start_y = parent.y + parent.height // 2 + 10
+        end_y = child.y - child.height // 2 - 5
+        mid_y = parent.y + (child.y - parent.y) // 2
+        
+        return f"""
+<svg class="arrow" style="left:0;top:0;width:2000px;height:2000px;">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+<path d="M0,0 L0,6 L9,3 z" fill="gray" />
+</marker></defs>
+<polyline points="{parent.x},{start_y} {parent.x},{mid_y} {child.x},{mid_y} {child.x},{end_y}" 
+  fill="none" stroke="gray" stroke-width="2" marker-end="url(#arrow)" />
 </svg>
 """
 
