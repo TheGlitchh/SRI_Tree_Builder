@@ -250,33 +250,42 @@ class TreeApp(ctk.CTk):
         control_frame.pack()
 
         # Control buttons
-        ctk.CTkButton(control_frame, text="Add Root", command=self.add_root_node).pack(side=tk.LEFT, padx=5)
-        ctk.CTkButton(control_frame, text="Add Child", command=self.add_child_node).pack(side=tk.LEFT, padx=5)
-        ctk.CTkButton(control_frame, text="Delete Node", command=self.delete_node).pack(side=tk.LEFT, padx=5)
-        ctk.CTkButton(control_frame, text="Export HTML", command=self.generate_html).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(control_frame, text="Add Root", command=self.add_root_node).pack(side=tk.LEFT, padx=3)
+        ctk.CTkButton(control_frame, text="Add Child", command=self.add_child_node).pack(side=tk.LEFT, padx=3)
+        ctk.CTkButton(control_frame, text="Delete Node", command=self.delete_node).pack(side=tk.LEFT, padx=3)
+        ctk.CTkButton(control_frame, text="Export HTML", command=self.generate_html).pack(side=tk.LEFT, padx=3)
         
         # Added arrow toggle switch
         arrow_frame = ctk.CTkFrame(control_frame)
-        arrow_frame.pack(side=tk.LEFT, padx=20)
-        
-        arrow_label = ctk.CTkLabel(arrow_frame, text="Arrow Type:")
-        arrow_label.pack(side=tk.LEFT, padx=5)
+        arrow_frame.pack(side=tk.LEFT, padx=10)
         
         # Variable to track arrow type: True = right angle, False = straight
         self.use_right_angle_arrows = tk.BooleanVar(value=False)
-        
-        # Create the toggle switch for arrow type
-        self.arrow_toggle = ctk.CTkSwitch(
-            arrow_frame, 
-            text="Right Angle", 
+
+# Straight arrow radio button (False)
+        straight_rb = ctk.CTkRadioButton(
+            arrow_frame,
+            text="Straight",
             variable=self.use_right_angle_arrows,
+            value=False,
             command=self.update_all_arrows
         )
-        self.arrow_toggle.pack(side=tk.LEFT, padx=5)
+        straight_rb.pack(side=tk.LEFT, padx=5)
+
+# Right-angle arrow radio button (True)
+        elbow_rb = ctk.CTkRadioButton(
+            arrow_frame,
+            text="Right Angle",
+            variable=self.use_right_angle_arrows,
+            value=True,
+            command=self.update_all_arrows
+        )
+        elbow_rb.pack(side=tk.LEFT, padx=5)
+
 
         # Add Save/Load buttons to control frame
         file_frame = ctk.CTkFrame(control_frame)
-        file_frame.pack(side=tk.LEFT, padx=20)
+        file_frame.pack(side=tk.LEFT, padx=5)
         
         # Save button - saves current tree layout to a file
         ctk.CTkButton(
@@ -295,7 +304,7 @@ class TreeApp(ctk.CTk):
         
         self.status_label = ctk.CTkLabel(
             control_frame, 
-            text="🟢 Ready: Select a node to add/delete/rename",
+            text="🌲 Select a node for action",
             font=("Segoe UI", 14, "bold"),
             text_color="#282828",  # Tailwind green-400
             anchor="w",
